@@ -79,9 +79,9 @@ def watchFile(dirname, stopThreads, removable_disk = False):
                 print(full_filename,ACTIONS.get(action, "Unknown"))
                 if action != 5:
                     if removable_disk:
-                        diskFiles.append([full_filename, action, time.time()])
+                        diskFiles.append([full_filename, action, time.time(), datetime.datetime.fromtimestamp(time.time())])
                     else:
-                        folderFiles.append([full_filename, action, time.time()])
+                        folderFiles.append([full_filename, action, time.time(), datetime.datetime.fromtimestamp(time.time())])
 
 @dataclass
 class Drive:
@@ -151,14 +151,13 @@ def removable_storage_listener(stopThreads):
     old_devices = []
     while True:
         if stopThreads:
-            break;
+            break
         old_devices = check_device_change(old_devices, stopThreads)
         
         time.sleep(1)
 
 def take_time(elem):
     return elem[2]
-
 
 
 def get_filename(full_name):
@@ -183,7 +182,7 @@ def checkAlerts(stopThreads):
                         if get_filename(r_dir[0]) == get_filename(f_dir[0]):
                             alerts.append({
                                 "filename": get_filename(r_dir[0]),
-                                "time": datetime.datetime.fromtimestamp(r_dir[2]),
+                                "time": r_dir[3],
                                 "details": [r_dir, f_dir]
                             })
 
@@ -193,7 +192,7 @@ def checkAlerts(stopThreads):
         time.sleep(1)
 
 
-t1 = threading.Thread(target = watchFile, args=("D:/SIEM/test1", stopThreads, ))
+t1 = threading.Thread(target = watchFile, args=("C:/Test", stopThreads, ))
 t3 = threading.Thread(target = removable_storage_listener, args=(stopThreads,))
 t4 = threading.Thread(target = checkAlerts, args=(stopThreads,))
 
@@ -201,10 +200,41 @@ t1.start()
 t3.start()
 t4.start()
 
+def by_time(elem):
+    return elem["time"]
 
 @app.route('/', methods=['GET'])
 def getEvents():
-    return jsonify(alerts)
+
+    f_alerts = []
+
+    alerts.sort(key=by_time, reverse=True)
+
+    new_alert = {"details": [], "files": [], "time": ""}
+
+    for i in range(len(alerts)):
+
+        new_alert["details"].extend(alerts[i]["details"])
+        new_alert["files"].append(alerts[i]["filename"])
+        new_alert["time"] = alerts[i]["time"]
+
+        if i + 1 < len(alerts):
+            print(alerts[i])
+            if alerts[i]["details"][0][2] <= alerts[i+1]["details"][0][2] + 2 and alerts[i]["details"][0][2] >= alerts[i+1]["details"][0][2] - 2:
+                # new_alert["details"].extend(alerts[i+1]["details"])  
+                # new_alert["files"].append(alerts[i + 1]["filename"])
+                pass
+            else:
+                f_alerts.append(new_alert)
+                new_alert = {"details": [], "files": [], "time": ""}
+                if(i == len(alerts) - 1):
+                    new_alert["details"].extend(alerts[i+1]["details"])  
+        else:
+            f_alerts.append(new_alert)
+
+    print(f_alerts)
+
+    return jsonify(f_alerts)
     
 
 # def handleEvent(action, pContext, event):
